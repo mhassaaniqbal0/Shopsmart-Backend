@@ -1,14 +1,14 @@
 const mongoose = require("mongoose");
 
 const supportSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   subject: { type: String, required: true },
   description: { type: String, required: true },
   status: { type: String, enum: ["open", "resolved"], default: "open" },
-  Priority: { type: String, enum: ["Low", "Medium", "High"] },
+  Priority: { type: String, enum: ["Low", "Medium", "High"], required: true },
   createdAt: { type: Date, default: Date.now },
   resolvedAt: { type: Date },
-  resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+  resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 });
 
 module.exports = mongoose.model("SupportTicket", supportSchema);

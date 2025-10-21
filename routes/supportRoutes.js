@@ -1,20 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken, verifyAdmin } = require("../middleware/authMiddleware");
-const { 
-  createTicket, 
-  getAllTickets, 
+const {
+  createTicket,
+  getAllTickets,
   resolveTicket,
-  getMyTickets // ✅ NEW
+  getMyTickets,
 } = require("../controllers/supportController");
 
-// User routes
+// 🧾 User Routes
 router.post("/", verifyToken, createTicket);
+router.get("/my-tickets", verifyToken, getMyTickets);
 
-// ✅ NEW - Get user's own tickets (MUST BE BEFORE /:id routes)
-// router.get("/my-tickets", verifyToken, getMyTickets);
-
-// Admin routes
+// 🧾 Admin Routes
 router.get("/", verifyToken, verifyAdmin, getAllTickets);
 router.put("/:id", verifyToken, verifyAdmin, resolveTicket);
 

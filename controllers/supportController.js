@@ -1,10 +1,14 @@
 const SupportTicket = require("../models/supportTicket");
 const sendEmail = require("../utils/sendemail");
 
-// User creates a ticket
+// 🧾 Create Ticket (User)
 exports.createTicket = async (req, res) => {
   try {
     const { subject, description, Priority } = req.body;
+
+    if (!subject || !description || !Priority) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
 
     const ticket = new SupportTicket({
       userId: req.user._id,
@@ -15,68 +19,71 @@ exports.createTicket = async (req, res) => {
 
     await ticket.save();
 
-    // Send confirmation email to user
     await sendEmail(
       req.user.email,
       "Support Ticket Received",
       `Dear ${req.user.firstName},
-       Your complaint titled "${subject}" has been received. We will get back to you shortly regarding your issue.
-       Thank you for contacting support.`
+       Your complaint titled "${subject}" has been received.
+       Our team will get back to you shortly. Thank you for contacting support.`
     );
 
-    res.status(201).json({ message: "Support ticket created", ticket });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(201).json({ message: "Support ticket created successfully.", ticket });
+  } catch (error) {
+    console.error("Error creating ticket:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// ✅ NEW - Get user's own tickets only
-// exports.getMyTickets = async (req, res) => {
-//   try {
-//     const tickets = await SupportTicket.find({ userId: req.user._id })
-//       .populate("userId", "email firstName lastName")
-//       .sort({ createdAt: -1 });
-//     res.json(tickets);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
-// Admin gets all tickets
+// 🧾 Get All Tickets (Admin)
 exports.getAllTickets = async (req, res) => {
   try {
-    const tickets = await SupportTicket.find().populate("userId", "email firstName lastName");
+    const tickets = await SupportTicket.find()
+      .populate("userId", "email firstName lastName")
+      .sort({ createdAt: -1 });
+
     res.json(tickets);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("Error fetching all tickets:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// Admin resolves ticket
+// 🧾 Get My Tickets (User)
+exports.getMyTickets = async (req, res) => {
+  try {
+    const tickets = await SupportTicket.find({ userId: req.user._id })
+      .populate("userId", "email firstName lastName")
+      .sort({ createdAt: -1 });
+
+    res.json(tickets);
+  } catch (error) {
+    console.error("Error fetching user's tickets:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// 🧾 Resolve Ticket (Admin)
 exports.resolveTicket = async (req, res) => {
   try {
-    const ticket = await SupportTicket.findById(req.params.id).populate("userId");
+    const { id } = req.params;
+    const { customMessage } = req.body;
 
-    if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+    const ticket = await SupportTicket.findById(id).populate("userId", "email firstName");
+
+    if (!ticket) return res.status(404).json({ message: "Ticket not found." });
+    if (!customMessage || !customMessage.trim()) {
+      return res.status(400).json({ message: "Custom message is required." });
+    }
 
     ticket.status = "resolved";
     ticket.resolvedAt = new Date();
     ticket.resolvedBy = req.user._id;
+
     await ticket.save();
 
-    const { customMessage } = req.body;
+    await sendEmail(ticket.userId.email, "Issue Resolved", customMessage);
 
-    if (!customMessage || customMessage.trim() === "") {
-      return res.status(400).json({ message: "Custom message is required" });
-    }
-
-    await sendEmail(
-      ticket.userId.email,
-      "Issue Resolved",
-      customMessage
-    );
-
-    res.status(200).json({ message: "Ticket resolved and email sent successfully" });
+    res.json({ message: "Ticket resolved and email sent successfully." });
   } catch (error) {
     console.error("Error resolving ticket:", error);
     res.status(500).json({ message: "Internal server error" });
