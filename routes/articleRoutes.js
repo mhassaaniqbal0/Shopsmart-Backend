@@ -13,30 +13,68 @@ const {
 console.log("📝 Article routes loading...");
 
 // ============================================
-// PUBLIC ROUTES
+// ✅ NEW FIX: Query-based category filter (for homepage & user dashboard)
 // ============================================
-
-// Get all articles
-router.get("/", getArticles);
-
-// Get articles by category
-router.get("/category/:category", async (req, res) => {
-  const { category } = req.params;
+router.get("/", async (req, res) => {
+  const { category } = req.query;
   const Article = require("../models/article");
 
   try {
-    const articles = await Article.find({ category })
-      .sort({ createdAt: -1 })
-      .exec();
+    let filter = {};
 
+    if (category && category.trim() !== "") {
+      filter = {
+        $or: [
+          { category: { $regex: `^${category}$`, $options: "i" } },
+          { Category: { $regex: `^${category}$`, $options: "i" } },
+        ],
+      };
+      console.log("🔍 Filtering by category:", category);
+    } else {
+      console.log("📋 No category filter, returning all");
+    }
+
+    // ✅ For homepage limit top 3, else return all for full view
+    const limitCount = category ? 3 : 0;
+    const query = Article.find(filter).sort({ createdAt: -1 });
+    if (limitCount > 0) query.limit(limitCount);
+
+    const articles = await query.exec();
+    console.log(`✅ Found ${articles.length} articles`);
     res.json(articles);
   } catch (err) {
+    console.error("❌ Error fetching articles:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ============================================
-// ADMIN ROUTES
+// Category-based route (optional, still kept for flexibility)
+// ============================================
+router.get("/category/:category", async (req, res) => {
+  const { category } = req.params;
+  const Article = require("../models/article");
+
+  try {
+    const articles = await Article.find({
+      $or: [
+        { category: { $regex: `^${category}$`, $options: "i" } },
+        { Category: { $regex: `^${category}$`, $options: "i" } },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    console.log(`✅ Found ${articles.length} articles for category ${category}`);
+    res.json(articles);
+  } catch (err) {
+    console.error("❌ Category fetch error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ADMIN ROUTES (protected)
 // ============================================
 
 // Search articles by title
@@ -55,4 +93,4 @@ router.put("/:id", verifyToken, verifyAdmin, updateArticle);
 router.delete("/:id", verifyToken, verifyAdmin, deleteArticle);
 
 console.log("✅ Article routes loaded successfully");
-module.exports = router; 
+module.exports = router;
