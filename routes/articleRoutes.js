@@ -55,4 +55,4 @@ router.put("/:id", verifyToken, verifyAdmin, updateArticle);
 router.delete("/:id", verifyToken, verifyAdmin, deleteArticle);
 
 console.log("✅ Article routes loaded successfully");
-module.exports = router;
+module.exports = router; 
