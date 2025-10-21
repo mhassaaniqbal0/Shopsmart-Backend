@@ -1,10 +1,10 @@
+// controllers/authController.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const sendEmail = require("../utils/sendemail");
 const crypto = require("crypto");
 
-// Generate OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 // ------------------------- SIGNUP -------------------------
@@ -32,9 +32,9 @@ exports.signup = async (req, res) => {
     });
 
     await sendEmail(email, "Verify your email", `Your OTP is ${otp}`);
+    await user.save();
 
     res.status(201).json({ message: "Signup successful, please verify OTP" });
-    await user.save();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -109,12 +109,14 @@ exports.verifyLoginOTP = async (req, res) => {
     user.otpExpiry = null;
     await user.save();
 
-    // ✅ Create JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    // ✅ Include both id and role in JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
-    // ✅ Include role in response (for frontend redirection)
+    // ✅ Return token + role
     res.json({
       message: "Login successful",
       token,
@@ -123,7 +125,7 @@ exports.verifyLoginOTP = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        role: user.role || "user", // <== CRITICAL CHANGE
+        role: user.role,
       },
     });
   } catch (err) {
@@ -135,7 +137,6 @@ exports.verifyLoginOTP = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
@@ -172,7 +173,6 @@ exports.resetPassword = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     user.password = hashedPassword;
-
     user.resetToken = null;
     user.resetTokenExpiry = null;
     await user.save();

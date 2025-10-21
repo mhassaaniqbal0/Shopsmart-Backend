@@ -9,26 +9,50 @@ const {
   resetPassword,
   forgotPassword,
 } = require("../controllers/authController");
+const User = require("../models/user");
 
 const router = express.Router();
 
-// 🔐 Google OAuth Routes
-router.get("/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
-
+// ✅ Google OAuth redirect (kept for browser-based login)
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 router.get(
   "/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: "/" }),
   (req, res) => {
-    const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.json({ message: "Google login successful", token });
   }
 );
 
-// 🔐 OTP & Password Routes
+// ✅ Token-based Google Login (used by frontend)
+router.post("/google", async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      const [firstName, ...lastParts] = name.split(" ");
+      const lastName = lastParts.join(" ");
+      user = new User({
+        firstName,
+        lastName,
+        email,
+        isVerified: true,
+        googleId: "GOOGLE_DIRECT",
+        gender: "Other",
+        phone: "N/A",
+      });
+      await user.save();
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    res.json({ token, message: "Google login successful" });
+  } catch (err) {
+    res.status(500).json({ message: "Google auth failed", error: err.message });
+  }
+});
+
+// ✅ OTP / Password routes
 router.post("/signup", signup);
 router.post("/verify-otp", verifyOTP);
 router.post("/login", login);
