@@ -159,26 +159,29 @@ exports.forgotPassword = async (req, res) => {
 };
 
 // ------------------------- RESET PASSWORD -------------------------
+// controllers/authController.js
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword)
+      return res.status(400).json({ message: "Missing fields" });
 
-    const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() },
-    });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (!user)
-      return res.status(400).json({ message: "Invalid or expired token" });
+    if (user.otp !== otp)
+      return res.status(400).json({ message: "Invalid OTP" });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    user.password = hashedPassword;
-    user.resetToken = null;
-    user.resetTokenExpiry = null;
+    if (Date.now() > user.otpExpiry)
+      return res.status(400).json({ message: "OTP expired" });
+
+    user.password = newPassword; // will be hashed in model
+    user.otp = undefined;
+    user.otpExpiry = undefined;
     await user.save();
 
     res.json({ message: "Password reset successful" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 };
