@@ -94,7 +94,6 @@ console.log('user found',user)
       return res.json({ twoFactorRequired: true, twoFactorToken, message: "2FA code sent to your email" });
     }
 
-    // normal login -> issue access token
     const token = signAccessToken({ id: user._id, email: user.email });
     return res.json({ success: true, token, user: { id: user._id, name: user.name, email: user.email } });
   } catch (err) {
