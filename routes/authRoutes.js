@@ -1,4 +1,6 @@
+require("dotenv").config();
 const express = require("express");
+const { OAuth2Client } = require("google-auth-library");
 const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const {
@@ -13,7 +15,12 @@ const User = require("../models/user");
 const sendEmail = require("../utils/sendemail"); // ✅ import email helper
 
 const router = express.Router();
-
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const JWT_SECRET = process.env.JWT_SECRET;
+function signAccessToken(payload, expiresIn = "7d") {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+}
 // ✅ Google OAuth (browser redirect fallback)
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 router.get(
@@ -27,47 +34,48 @@ router.get(
 
 // ✅ Token-based Google Login + OTP (used by frontend)
 router.post("/google", async (req, res) => {
-  try {
-    const { email, name } = req.body;
+   try {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ message: "Missing idToken" });
+    if (!googleClient) return res.status(500).json({ message: "Google client not configured" });
 
-    if (!email)
-      return res.status(400).json({ message: "Email missing in request" });
+    // verify idToken
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    if (!payload) return res.status(400).json({ message: "Invalid Google token" });
+    const email = payload.email;
+    const name = payload.name || payload.email.split("@")[0];
+    const googleId = payload.sub;
 
-    // ✅ Check or create user
     let user = await User.findOne({ email });
     if (!user) {
-      const [firstName, ...rest] = (name || "Google User").split(" ");
-      const lastName = rest.join(" ");
+      // create new user, mark email verified
       user = new User({
-        firstName,
-        lastName,
+        name,
         email,
-        isVerified: true,
-        googleId: "GOOGLE_DIRECT",
-        role: "user",
+        password: null,
+        googleId,
+        isVerified: true
       });
       await user.save();
+    } else {
+      // existing user: if googleId missing, attach it
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.isVerified = true;
+        await user.save();
+      }
     }
 
-    // ✅ Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000; // valid for 5 mins
-    await user.save();
-
-    // ✅ Send email asynchronously (non-blocking)
-    sendEmail(user.email, "Google Login OTP", `Your OTP is ${otp}`)
-      .then(() => console.log("✅ OTP email sent:", user.email))
-      .catch((err) => console.error("❌ Email send failed:", err));
-
-    // ✅ Respond immediately (no wait)
-    return res.json({
-      message: "OTP sent to your email, please verify to login",
-      success: true,
-    });
+    // create JWT
+    const token = signAccessToken({ id: user._id, email: user.email });
+    return res.json({ success: true, token, user: { id: user._id, name: user.name, email: user.email } });
   } catch (err) {
-    console.error("❌ Google login error:", err);
-    res.status(500).json({ message: "Google auth failed", error: err.message });
+    console.error("googleSignIn error:", err);
+    return res.status(500).json({ message: "Server error verifying Google token" });
   }
 });
 
