@@ -14,9 +14,45 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String },
   resetToken: { type: String },
   resetTokenExpiry: { type: Date },
-
+  twoFactor: {
+    enabled: { type: Boolean, default: false },
+    otp: {
+      codeHash: String,
+      expiresAt: Number
+    }
+  },
   // ✅ Important: Add default role
   role: { type: String, enum: ["user", "admin"], default: "user" },
-});
 
-module.exports = mongoose.model("User", userSchema);
+  // Rewards & Promotions fields
+  coins: { type: Number, default: 0 },
+  loyaltyPoints: { type: Number, default: 0 },
+  purchaseCount: { type: Number, default: 0 },
+  promotedProducts: { type: [String], default: [] },
+
+  
+  // Flash Deals personalization fields
+  wishlist: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product",
+  }],
+  recentlyViewed: [{
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+    },
+    viewedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
+  preferredPlatforms: [{
+    type: String,
+    enum: ["Daraz", "Telemart"],
+  }],
+});
+  
+// module.exports = mongoose.model("User", userSchema);
+const User = mongoose.models.User || mongoose.model("User", userSchema);
+module.exports = User;
+

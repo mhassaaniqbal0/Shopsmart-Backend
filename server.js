@@ -1,3 +1,4 @@
+require("dns").setDefaultResultOrder("ipv4first");
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -9,7 +10,13 @@ const articleRoutes = require('./routes/articleRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const sellerRoutes = require('./routes/sellerRoutes'); 
 const medicineRoutes = require('./routes/medicineRoutes');
+const flashDealsRoutes = require('./routes/flashDealsRoutes');
+const userRoutes = require('./routes/userRoutes');
+const vocRoutes = require('./routes/vocRoutes');
+const wishlistRoutes = require('./routes/wishlistRoutes');
+
 
 
 require("./config/passport");
@@ -17,15 +24,29 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================
+// Static Files
+// ============================================
+app.use('/uploads', express.static('uploads'));
+
+// ============================================
 // CORS Configuration - MUST BE FIRST
 // ============================================
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  optionsSuccessStatus: 200
-}));
+// app.use(cors({
+//   origin: process.env.FRONTEND_URL || "http://localhost:5174",
+//   credentials: true,
+//   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+//   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+//   optionsSuccessStatus: 200
+// }));
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    optionsSuccessStatus: 200,
+  })
+);
 
 // ============================================
 // Session & Passport Configuration
@@ -84,8 +105,13 @@ app.use('/api/articles', articleRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/voc', vocRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/medicine', medicineRoutes);
+app.use('/api/flash-deals', flashDealsRoutes);
+app.use('/api/user', userRoutes);
 
+app.use('/api/sellers', sellerRoutes);
 // ============================================
 // 404 Handler
 // ============================================
@@ -117,5 +143,8 @@ app.listen(PORT, () => {
   console.log(`📍 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
+
+// const sellerRoutes = require('./routes/sellerRoutes');
+// app.use('/api/sellers', sellerRoutes);
 
 module.exports = app;
