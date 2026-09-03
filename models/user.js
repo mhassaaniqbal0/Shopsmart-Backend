@@ -2,6 +2,9 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
+  // Single display name, used for accounts created via Google sign-in
+  // (which don't collect separate first/last name).
+  name: { type: String },
   firstName: { type: String  },
   lastName: { type: String  },
   email: { type: String, unique: true },

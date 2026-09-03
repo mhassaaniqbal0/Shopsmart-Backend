@@ -77,15 +77,34 @@ exports.login = async (req, res) => {
     //   return res.status(400).json({ message: "Verify email first" });
     // }
 
-    // Generate OTP for login
-    // const otp = generateOTP();
-    // user.otp = otp;
-    // user.otpExpiry = Date.now() + 5 * 60 * 1000;
-    // await user.save();
+    // Email OTP / 2FA step is currently disabled for password login — issue
+    // the session token directly, same as Google sign-in does.
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    // await sendEmail(email, "Login OTP", `Your OTP is ${otp}`);
+    const name =
+      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+      user.name ||
+      undefined;
 
-    res.json({ message: "OTP sent to email, please verify to login" });
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        _id: user._id,
+        name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        coins: user.coins,
+        loyaltyPoints: user.loyaltyPoints,
+        purchaseCount: user.purchaseCount,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -112,7 +131,7 @@ exports.verifyLoginOTP = async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     // ✅ Return token + role

@@ -27,7 +27,7 @@ router.get(
   "/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: "/" }),
   (req, res) => {
-    const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.json({ message: "Google login successful", token });
   }
 );
@@ -66,6 +66,12 @@ router.post("/google", async (req, res) => {
       if (!user.googleId) {
         user.googleId = googleId;
         user.isVerified = true;
+        await user.save();
+      }
+      // Backfill a display name for older accounts that predate the
+      // schema's `name` field (it used to be silently dropped on save).
+      if (!user.name && !user.firstName) {
+        user.name = name;
         await user.save();
       }
     }
