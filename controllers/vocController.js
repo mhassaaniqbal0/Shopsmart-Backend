@@ -1,4 +1,5 @@
 const VocComment = require('../models/VocComment');
+const Notification = require('../models/Notification');
 
 // 🧾 Get All Comments
 exports.getComments = async (req, res) => {
@@ -65,6 +66,40 @@ exports.addReply = async (req, res) => {
     comment.replies.push(reply);
     await comment.save();
 
+    console.log(`Reply added to comment ${id}. Comment owner: ${comment.user}, Replier: ${req.user._id}`);
+
+    // Trigger Notification for Comment
+    if (comment.user && comment.user.toString() !== req.user._id.toString()) {
+      console.log(`Triggering notification for comment. Recipient: ${comment.user}`);
+      const notification = new Notification({
+        recipient: comment.user,
+        sender: req.user._id,
+        type: 'comment',
+        commentId: comment._id
+      });
+      await notification.save();
+
+      const io = req.app.get('socketio');
+      if (io) {
+        console.log(`Emitting newNotification to room: ${comment.user.toString()}`);
+        const senderFirstName = (req.user && req.user.firstName) ? String(req.user.firstName) : '';
+        const senderLastName = (req.user && req.user.lastName) ? String(req.user.lastName) : '';
+        const senderFullName = `${senderFirstName} ${senderLastName}`.trim();
+        const senderName = senderFullName || (req.user && req.user.name) || (req.user && req.user.username) || (req.user && req.user.email) || 'Someone';
+        const senderEmail = (req.user && req.user.email) ? String(req.user.email) : '';
+
+        io.to(comment.user.toString()).emit('newNotification', {
+          type: 'comment',
+          senderName,
+          senderEmail,
+          commentText: comment.text,
+          createdAt: notification.createdAt
+        });
+      } else {
+        console.log('Socket.io instance not found in app');
+      }
+    }
+
     res.status(201).json(comment);
   } catch (error) {
     console.error('Error adding reply:', error);
@@ -106,7 +141,7 @@ exports.toggleLike = async (req, res) => {
       return res.status(404).json({ message: 'Comment not found' });
     }
 
-    const likedIndex = comment.likedBy.indexOf(userId);
+    const likedIndex = comment.likedBy.findIndex(uid => uid.toString() === userId.toString());
     if (likedIndex === -1) {
       // Like
       comment.likedBy.push(userId);
@@ -118,6 +153,41 @@ exports.toggleLike = async (req, res) => {
     }
 
     await comment.save();
+
+    console.log(`Like toggled for comment ${id}. Comment owner: ${comment.user}, User: ${userId}`);
+
+    // Trigger Notification for Like (only if it's a new like, not an unlike)
+    if (likedIndex === -1 && comment.user && comment.user.toString() !== userId.toString()) {
+      console.log(`Triggering notification for like. Recipient: ${comment.user}`);
+      const notification = new Notification({
+        recipient: comment.user,
+        sender: userId,
+        type: 'like',
+        commentId: comment._id
+      });
+      await notification.save();
+
+      const io = req.app.get('socketio');
+      if (io) {
+        console.log(`Emitting newNotification to room: ${comment.user.toString()}`);
+        const senderFirstName = (req.user && req.user.firstName) ? String(req.user.firstName) : '';
+        const senderLastName = (req.user && req.user.lastName) ? String(req.user.lastName) : '';
+        const senderFullName = `${senderFirstName} ${senderLastName}`.trim();
+        const senderName = senderFullName || (req.user && req.user.name) || (req.user && req.user.username) || (req.user && req.user.email) || 'Someone';
+        const senderEmail = (req.user && req.user.email) ? String(req.user.email) : '';
+
+        io.to(comment.user.toString()).emit('newNotification', {
+          type: 'like',
+          senderName,
+          senderEmail,
+          commentText: comment.text,
+          createdAt: notification.createdAt
+        });
+      } else {
+        console.log('Socket.io instance not found in app');
+      }
+    }
+
     res.json({ likes: comment.likes, hasLiked: likedIndex === -1 });
   } catch (error) {
     console.error('Error toggling like:', error);
