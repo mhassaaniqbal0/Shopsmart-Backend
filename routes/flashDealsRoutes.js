@@ -21,3 +21,4 @@ router.get("/", getFlashDeals);
 module.exports = router;
 
 
+
